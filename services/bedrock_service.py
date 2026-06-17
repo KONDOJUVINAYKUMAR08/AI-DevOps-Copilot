@@ -30,7 +30,7 @@ class BedrockService:
                     }
                 ],
                 "inferenceConfig": {
-                    "maxNewTokens": 4000,
+                    "maxTokens": 4000,
                     "temperature": 0.1,
                     "topP": 0.9
                 }
