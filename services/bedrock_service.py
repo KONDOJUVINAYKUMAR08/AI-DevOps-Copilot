@@ -70,27 +70,100 @@ class BedrockService:
 
     def _parse_response(self, text):
 
-        try:
-
-            cleaned = text.strip()
-
+        def _clean_text(raw_text):
+            cleaned = raw_text.strip()
             if cleaned.startswith("```json"):
-                cleaned = cleaned.replace("```json", "")
-                cleaned = cleaned.replace("```", "")
+                cleaned = cleaned.replace("```json", "", 1)
+            if cleaned.startswith("```"):
+                cleaned = cleaned[3:]
+            if cleaned.endswith("```"):
+                cleaned = cleaned[:-3]
+            return cleaned.strip()
 
-            data = json.loads(cleaned)
-
+        def _normalize_artifact(item):
+            if not isinstance(item, dict):
+                return None
             return {
-                "type": data.get("artifactType", "Unknown"),
-                "file_name": data.get("fileName", "generated.txt"),
-                "code": data.get("code", ""),
-                "explanation": data.get("explanation", ""),
-                "compliance": "\n".join(
-                    data.get("compliance", [])
-                )
+                "artifactType": item.get("artifactType", "Unknown"),
+                "fileName": item.get("fileName", "generated.txt"),
+                "code": item.get("code", "") or "",
+                "explanation": item.get("explanation", "") or "",
+                "compliance": item.get("compliance", []) or []
             }
 
-        except Exception as e:
+        cleaned = _clean_text(text)
+        artifacts = []
+
+        try:
+            data = json.loads(cleaned)
+
+            if isinstance(data, dict) and isinstance(data.get("artifacts"), list):
+                artifacts = [
+                    _normalize_artifact(item)
+                    for item in data["artifacts"]
+                    if isinstance(item, dict)
+                ]
+            elif isinstance(data, list):
+                artifacts = [
+                    _normalize_artifact(item)
+                    for item in data
+                    if isinstance(item, dict)
+                ]
+            elif isinstance(data, dict):
+                artifact = _normalize_artifact(data)
+                if artifact:
+                    artifacts = [artifact]
+        except json.JSONDecodeError:
+            decoder = json.JSONDecoder()
+            index = 0
+            text_len = len(cleaned)
+
+            while index < text_len:
+                while index < text_len and cleaned[index].isspace():
+                    index += 1
+                if index >= text_len:
+                    break
+                if cleaned[index] not in "[{":
+                    next_obj = cleaned.find("{", index)
+                    if next_obj == -1:
+                        break
+                    index = next_obj
+                try:
+                    obj, offset = decoder.raw_decode(cleaned[index:])
+                    if isinstance(obj, dict) and isinstance(obj.get("artifacts"), list):
+                        artifacts.extend([
+                            _normalize_artifact(item)
+                            for item in obj["artifacts"]
+                            if isinstance(item, dict)
+                        ])
+                    elif isinstance(obj, list):
+                        artifacts.extend([
+                            _normalize_artifact(item)
+                            for item in obj
+                            if isinstance(item, dict)
+                        ])
+                    elif isinstance(obj, dict):
+                        artifact = _normalize_artifact(obj)
+                        if artifact:
+                            artifacts.append(artifact)
+                    index += offset
+                except json.JSONDecodeError:
+                    break
+
+        if artifacts:
+            return {"artifacts": artifacts}
+
+        return {
+            "artifacts": [
+                {
+                    "artifactType": "Raw Output",
+                    "fileName": "output.txt",
+                    "code": text,
+                    "explanation": "JSON Parse Error: Failed to decode Bedrock response",
+                    "compliance": []
+                }
+            ]
+        }
 
             return {
                 "type": "Raw Output",

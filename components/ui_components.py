@@ -32,32 +32,79 @@ def sidebar_components():
             
     return None
 
-def artifact_display(result):
-    if not result:
-        return
-        
-    st.markdown("---")
-    st.markdown(f'<div class="dot-matrix" style="color: #FF0031; font-size: 1.2rem;">OUTPUT // {result["type"]}</div>', unsafe_allow_html=True)
-    st.subheader(result['file_name'])
-    
+def _get_syntax_language(file_name, artifact_type=""):
+    extension = file_name.split('.')[-1].lower() if '.' in file_name else ''
+    mapping = {
+        'tf': 'terraform',
+        'yaml': 'yaml',
+        'yml': 'yaml',
+        'json': 'json',
+        'sh': 'bash',
+        'py': 'python',
+        'txt': 'text',
+        'dockerfile': 'dockerfile'
+    }
+    if extension in mapping:
+        return mapping[extension]
+    return artifact_type.lower().replace(" ", "") if artifact_type else ""
+
+
+def _render_artifact(artifact, top_type=None, key_prefix=""):
+    artifact_type = artifact.get('artifactType', 'Unknown')
+    file_name = artifact.get('fileName', 'generated.txt')
+    language = _get_syntax_language(file_name, artifact_type)
+
+    st.markdown('---')
+    st.markdown(f'<div class="dot-matrix" style="color: #FF0031; font-size: 1.2rem;">OUTPUT // {top_type or artifact_type}</div>', unsafe_allow_html=True)
+    st.subheader(file_name)
+
     col1, col2 = st.columns([3, 1])
     with col1:
-        st.code(result['code'], language=result['type'].lower().replace(" ", ""))
-    
+        st.code(artifact.get('code', ''), language=language)
+
     with col2:
         st.markdown('<div class="dot-matrix" style="font-size: 0.8rem;">ACTIONS</div>', unsafe_allow_html=True)
         st.download_button(
             label="DOWNLOAD_FILE",
-            data=result['code'],
-            file_name=result['file_name'],
-            mime="text/plain"
+            data=artifact.get('code', ''),
+            file_name=file_name,
+            mime="text/plain",
+            key=f"download_{key_prefix}"
         )
-        if st.button("COPY_CLIPBOARD"):
+        if st.button("COPY_CLIPBOARD", key=f"copy_{key_prefix}"):
             st.toast("LOG: BYTES_COPIED_TO_CLIPBOARD")
-            
+
     st.markdown('<div class="dot-matrix" style="font-size: 0.8rem; margin-top: 20px;">LOG_ANALYSIS</div>', unsafe_allow_html=True)
-    st.info(result['explanation'])
-    
-    if result.get('compliance'):
+    st.info(artifact.get('explanation', ''))
+
+    if artifact.get('compliance'):
         st.markdown('<div class="dot-matrix" style="font-size: 0.8rem; color: #00ff00;">COMPLIANCE_SCAN_PASS</div>', unsafe_allow_html=True)
-        st.success(result['compliance'])
+        st.success("\n".join(artifact.get('compliance', [])))
+
+
+def artifact_display(result):
+    if not result:
+        return
+
+    artifacts = result.get('artifacts') if isinstance(result, dict) else None
+
+    if artifacts and isinstance(artifacts, list):
+        if len(artifacts) == 1:
+            _render_artifact(artifacts[0], top_type=artifacts[0].get('artifactType', result.get('type', 'Output')),
+                             key_prefix=artifacts[0].get('fileName', 'artifact').replace(' ', '_'))
+            return
+
+        st.markdown('---')
+        st.markdown(f'<div class="dot-matrix" style="color: #FF0031; font-size: 1.2rem;">OUTPUT // MULTIPLE ARTIFACTS</div>', unsafe_allow_html=True)
+        st.markdown('**Files Generated:**')
+        for file_name in [artifact.get('fileName', 'artifact') for artifact in artifacts]:
+            st.markdown(f'- {file_name}')
+
+        for artifact in artifacts:
+            section_name = artifact.get('fileName', 'artifact').replace(' ', '_')
+            with st.expander(artifact.get('fileName', 'artifact')):
+                _render_artifact(artifact, top_type=artifact.get('artifactType', result.get('type', 'Artifact')),
+                                 key_prefix=section_name)
+        return
+
+    _render_artifact(result, top_type=result.get('type', 'Output'), key_prefix=result.get('file_name', 'artifact').replace(' ', '_'))
