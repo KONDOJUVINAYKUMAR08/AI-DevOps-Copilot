@@ -164,11 +164,3 @@ class BedrockService:
                 }
             ]
         }
-
-            return {
-                "type": "Raw Output",
-                "file_name": "output.txt",
-                "code": text,
-                "explanation": f"JSON Parse Error: {str(e)}",
-                "compliance": ""
-            }
