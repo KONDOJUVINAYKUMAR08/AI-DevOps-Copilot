@@ -1,6 +1,6 @@
 import streamlit as st
-from project.services.bedrock_service import BedrockService
-from project.components.ui_components import sidebar_components, artifact_display, header_component, footer_component
+from services.bedrock_service import BedrockService
+from components.ui_components import sidebar_components, artifact_display, header_component, footer_component
 
 # Page Configuration
 st.set_page_config(

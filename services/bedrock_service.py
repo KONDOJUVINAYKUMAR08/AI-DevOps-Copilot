@@ -1,7 +1,7 @@
 import boto3
 import json
 import os
-from project.prompts.devops_prompt import get_devops_prompt
+from prompts.devops_prompt import get_devops_prompt
 
 class BedrockService:
     def __init__(self, region_name="us-east-1"):
